@@ -2,11 +2,9 @@
 // src/dashboard.php
 
 function getDashboardTotals($pdo, $mes, $ano) {
-    $myId = 1; 
-
-    // Define o intervalo do mês (Do dia 01 ao dia 31)
+    // 1. Definições de Data
     $startDate = "$ano-$mes-01";
-    $endDate   = date("Y-m-t", strtotime($startDate)); // Último dia do mês
+    $endDate   = date("Y-m-t", strtotime($startDate));
 
     $totals = [
         'saldo_atual' => 0,
@@ -16,12 +14,17 @@ function getDashboardTotals($pdo, $mes, $ano) {
         'a_receber_terceiros' => 0
     ];
 
-    // 1. SALDO ATUAL (Sempre Total Real, independente do mês)
+    // =======================================================
+    // 1. SALDO ATUAL (Dinheiro que você tem AGORA)
+    // =======================================================
     $stmt = $pdo->query("SELECT SUM(current_balance) FROM accounts");
-    $totals['saldo_atual'] = $stmt->fetchColumn() ?: 0;
+    $totals['saldo_atual'] = (float)$stmt->fetchColumn();
 
-    // 2. A RECEBER DO MÊS (Filtrado por Data)
-    // Entradas pendentes deste mês
+    // =======================================================
+    // 2. A RECEBER (Entradas suas + Reembolsos de terceiros)
+    // =======================================================
+    
+    // A. Suas Entradas (Salário, etc)
     $entradas = $pdo->query("
         SELECT SUM(amount) FROM transactions 
         WHERE type = 'entrada' 
@@ -29,12 +32,13 @@ function getDashboardTotals($pdo, $mes, $ano) {
           AND due_date BETWEEN '$startDate' AND '$endDate'
     ")->fetchColumn() ?: 0;
     
-    // Gastos de Terceiros deste mês (ou faturas deste mês)
+    // B. Reembolsos (O que gastaram no seu cartão/conta)
+    // Nota: Aqui mantemos a lógica: se saiu dinheiro para terceiro, ele te deve.
     $terceiros = $pdo->query("
         SELECT SUM(amount) FROM transactions 
         WHERE type = 'saida' 
-          AND person_id != $myId 
-          AND status != 'reembolsado'
+          AND person_id != 1  -- Diferente de 'Eu'
+          AND status = 'pendente' 
           AND (
             (credit_card_id IS NULL AND due_date BETWEEN '$startDate' AND '$endDate') OR
             (credit_card_id IS NOT NULL AND invoice_date BETWEEN '$startDate' AND '$endDate')
@@ -44,26 +48,25 @@ function getDashboardTotals($pdo, $mes, $ano) {
     $totals['a_receber'] = $entradas + $terceiros;
     $totals['a_receber_terceiros'] = $terceiros;
 
-    // 3. DÍVIDAS DO MÊS (Filtrado por Data)
-    // Contas normais (vencimento no mês) + Cartão (fatura deste mês)
-    // Apenas person_id = 1 (Eu)
+    // =======================================================
+    // 3. DÍVIDAS (AQUI ESTAVA O ERRO)
+    // =======================================================
+    // O sistema estava filtrando "AND person_id = 1". 
+    // REMOVEMOS ISSO. A dívida é total, independente de quem gastou.
     
-    // A. Contas Normais (Sem cartão)
+    // A. Contas Normais (Boletos) Pendentes
     $dividasContas = $pdo->query("
         SELECT SUM(amount) FROM transactions 
         WHERE type = 'saida' 
           AND status = 'pendente' 
-          AND person_id = $myId
           AND credit_card_id IS NULL
           AND due_date BETWEEN '$startDate' AND '$endDate'
     ")->fetchColumn() ?: 0;
 
-    // B. Faturas de Cartão (Soma os itens da fatura deste mês)
-    // Nota: Aqui somamos os itens individuais para compor a dívida do cartão prevista
+    // B. Faturas de Cartão Pendentes
     $dividasCartao = $pdo->query("
         SELECT SUM(amount) FROM transactions 
         WHERE type = 'saida'
-          AND person_id = $myId
           AND credit_card_id IS NOT NULL
           AND invoice_date BETWEEN '$startDate' AND '$endDate'
           AND status = 'pendente'
@@ -71,8 +74,11 @@ function getDashboardTotals($pdo, $mes, $ano) {
 
     $totals['dividas'] = $dividasContas + $dividasCartao;
 
-    // 4. PROJEÇÃO FINAL DO MÊS
-    // Lógica: Se eu tenho X hoje + receber Y este mês - pagar Z este mês, termino com quanto?
+    // =======================================================
+    // 4. PROJEÇÃO (Saldo + Entradas - Saídas Totais)
+    // =======================================================
+    // Agora a conta fecha: Se a dívida é 3000 e vc tem 1000 a receber de terceiros,
+    // o impacto líquido será calculado corretamente aqui.
     $totals['diferenca'] = ($totals['saldo_atual'] + $totals['a_receber']) - $totals['dividas'];
 
     return $totals;
