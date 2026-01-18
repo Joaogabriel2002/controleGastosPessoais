@@ -77,4 +77,35 @@ function getDashboardTotals($pdo, $mes, $ano) {
 
     return $totals;
 }
+
+
+function getDespesasPorCategoria($pdo, $mes, $ano) {
+    // Busca soma de saídas agrupadas por categoria neste mês
+    $sql = "
+        SELECT c.name, SUM(t.amount) as total
+        FROM transactions t
+        JOIN categories c ON t.category_id = c.id
+        WHERE t.type = 'saida' 
+          AND ((t.credit_card_id IS NULL AND t.due_date BETWEEN '$ano-$mes-01' AND '$ano-$mes-31')
+            OR (t.credit_card_id IS NOT NULL AND t.invoice_date = '$ano-$mes-01'))
+        GROUP BY c.name
+        ORDER BY total DESC
+    ";
+    return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function getEvolucaoSemestral($pdo) {
+    // Pega os últimos 6 meses
+    $sql = "
+        SELECT 
+            DATE_FORMAT(due_date, '%Y-%m') as mes_ref,
+            SUM(amount) as total
+        FROM transactions 
+        WHERE type = 'saida' 
+          AND due_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        GROUP BY mes_ref
+        ORDER BY mes_ref ASC
+    ";
+    return $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
