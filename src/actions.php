@@ -425,5 +425,46 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action'])) {
             die("Erro ao excluir: " . $e->getMessage());
         }
     }
+    // ... dentro do actions.php ...
+
+    // -------------------------------------------------------------------------
+    // 12. RECEBER REEMBOLSO DE TERCEIROS
+    // -------------------------------------------------------------------------
+    elseif ($action == 'receber_reembolso') {
+        $transaction_id = $_POST['id'];
+        $account_id     = $_POST['account_id']; // Conta onde o dinheiro entrou
+
+        try {
+            $pdo->beginTransaction();
+
+            // 1. Pega dados da dívida original
+            $stmt = $pdo->prepare("SELECT amount, description, person_id FROM transactions WHERE id = ?");
+            $stmt->execute([$transaction_id]);
+            $divida = $stmt->fetch();
+
+            if (!$divida) die("Lançamento não encontrado.");
+
+            // 2. Marca a dívida como 'reembolsado'
+            // Isso faz ela sumir da lista de "A Receber" e do Dashboard de terceiros
+            $stmtUp = $pdo->prepare("UPDATE transactions SET status = 'reembolsado' WHERE id = ?");
+            $stmtUp->execute([$transaction_id]);
+
+            // 3. Adiciona o dinheiro na conta selecionada (Entrada no caixa)
+            // Usamos a função registrarKardex que já faz o Update na conta e o Insert no History
+            // OBS: Não criamos uma NOVA transação de entrada para não duplicar relatórios, 
+            // apenas ajustamos o saldo da conta via Kardex.
+            
+            // Mas para ficar bonito no extrato, vamos registrar no Kardex com a referência da transação original
+            registrarKardex($pdo, $account_id, 'entrada', $divida['amount'], $transaction_id);
+
+            $pdo->commit();
+            header("Location: ../terceiros.php?msg=reembolso_ok");
+            exit;
+
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            die("Erro ao processar reembolso: " . $e->getMessage());
+        }
+    }
 }
 ?>

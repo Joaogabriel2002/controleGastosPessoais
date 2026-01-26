@@ -31,11 +31,9 @@ $endDate   = $dataAtualObj->format('Y-m-t');
 // =============================================================================
 
 // A. Totais dos Cards (KPIs)
-// Certifique-se que seu src/dashboard.php está atualizado com a função getDashboardTotals
 $kpis = getDashboardTotals($pdo, $mesAtual, $anoAtual); 
 
 // B. Faturas Abertas do Mês
-// Busca faturas onde a "Data de Referência" é igual ao mês selecionado
 $faturasAbertas = getOpenInvoices($pdo, $mesAtual, $anoAtual);
 
 // C. Lista de Contas Pendentes (Boletos, Água, Luz, Pix Agendado)
@@ -109,23 +107,30 @@ $mesesExtenso = [
         </div>
         
         <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
+            
             <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-blue-500">
                 <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Saldo em Contas (Hoje)</h3>
                 <p class="text-2xl font-bold text-gray-800 mt-1">
                     R$ <?php echo number_format($kpis['saldo_atual'], 2, ',', '.'); ?>
                 </p>
             </div>
-            <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500">
-                <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">A Receber (Mês)</h3>
-                <p class="text-2xl font-bold text-green-600 mt-1">R$ <?php echo number_format($kpis['a_receber'], 2, ',', '.'); ?></p>
-                <?php if($kpis['a_receber_terceiros'] > 0): ?>
-                    <p class="text-[10px] text-gray-500 mt-1">Inclui R$ <?php echo number_format($kpis['a_receber_terceiros'], 2, ',', '.'); ?> de terceiros</p>
-                <?php endif; ?>
-            </div>
+            
+            <a href="recebimentos.php?mes=<?php echo $mesAtual; ?>&ano=<?php echo $anoAtual; ?>" class="block transition transform hover:scale-105">
+                <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-green-500 h-full">
+                    <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">A Receber (Mês)</h3>
+                    <p class="text-2xl font-bold text-green-600 mt-1">R$ <?php echo number_format($kpis['a_receber'], 2, ',', '.'); ?></p>
+                    <?php if($kpis['a_receber_terceiros'] > 0): ?>
+                        <p class="text-[10px] text-gray-500 mt-1">Inclui R$ <?php echo number_format($kpis['a_receber_terceiros'], 2, ',', '.'); ?> de terceiros</p>
+                    <?php endif; ?>
+                    <p class="text-xs text-blue-500 mt-2 font-medium">Ver detalhes &rarr;</p>
+                </div>
+            </a>
+            
             <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-red-500">
                 <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Dívidas (Mês)</h3>
                 <p class="text-2xl font-bold text-red-600 mt-1">R$ <?php echo number_format($kpis['dividas'], 2, ',', '.'); ?></p>
             </div>
+            
             <div class="bg-white p-6 rounded-lg shadow-md border-l-4 border-purple-500">
                 <h3 class="text-gray-500 text-xs font-bold uppercase tracking-wider">Projeção Final</h3>
                 <p class="text-2xl font-bold <?php echo $kpis['diferenca'] >= 0 ? 'text-purple-600' : 'text-red-600'; ?> mt-1">R$ <?php echo number_format($kpis['diferenca'], 2, ',', '.'); ?></p>
@@ -139,7 +144,7 @@ $mesesExtenso = [
             <div>
                  <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                    Contas a Pagar / Receber
+                    Contas a Pagar
                  </h2>
                  <?php include 'src/partials_tabela_pendentes.php'; ?>
             </div>
